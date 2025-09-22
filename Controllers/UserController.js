@@ -74,14 +74,14 @@ exports.searchUsers = async (req, res) => {
 
 exports.getMe = async (req, res) => {
     try {
-        // req.user.id is attached by the AuthMiddleware
+        
         const user = await User.findById(req.user.id).select('-password');
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Return the user data
+        
         res.status(200).json({ user });
     } catch (err) {
         console.error(err.message);
