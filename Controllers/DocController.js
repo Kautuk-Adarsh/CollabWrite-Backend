@@ -1,20 +1,20 @@
 const Document = require('../Models/Document')
 
-exports.createDocument = async (req, res)=>{
-   try{
-    const { title,content } = req.body
+exports.createDocument = async (req, res) => {
+  try {
+    const { title, content } = req.body
 
-    if(!title || !content){
-       return res.status(400).json({"Message":"All the fields are required"});
+    if (!title || !content) {
+      return res.status(400).json({ "Message": "All the fields are required" });
     }
 
-    const newdoc = new Document({title, content , owner: req.user.id});
+    const newdoc = new Document({ title, content, owner: req.user.id });
     await newdoc.save();
-    res.status(200).json({"Message":"Document Created","Document":newdoc})
-    }catch(err){
-        console.error(err);
-        res.status(500).json({"Message":"Problem in creating the document"})
-    }
+    res.status(200).json({ "Message": "Document Created", "Document": newdoc })
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ "Message": "Problem in creating the document" })
+  }
 
 };
 
@@ -29,7 +29,7 @@ exports.updateDocument = async (req, res) => {
     }
 
     const userId = req.user.id;
- 
+
     if (
       doc.owner.toString() !== userId &&
       !doc.collaborators.map(c => c.toString()).includes(userId) &&
@@ -37,7 +37,7 @@ exports.updateDocument = async (req, res) => {
     ) {
       return res.status(401).json({ "Message": "User not authorized for this document" });
     }
- 
+
     doc.versions.push({
       title: doc.title,
       content: doc.content,
@@ -64,25 +64,25 @@ exports.updateDocument = async (req, res) => {
 
 
 
-exports.deleteDocument = async (req, res)=>{
-    try{
-    let {id} = req.params;
-    let doc = await  Document.findById(id);
-    
-    if(!doc){
-        return res.status(404).json({"Message":"Could not find the Document"});
+exports.deleteDocument = async (req, res) => {
+  try {
+    let { id } = req.params;
+    let doc = await Document.findById(id);
+
+    if (!doc) {
+      return res.status(404).json({ "Message": "Could not find the Document" });
     }
-    
-    if (doc.owner.toString() !== req.user.id && req.user.role !== 'admin'){
-      return res.status(401).json({"Message":"Not the authorized Owner or Admin"});
+
+    if (doc.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(401).json({ "Message": "Not the authorized Owner or Admin" });
     }
 
     await doc.deleteOne();
-    res.status(200).json({"Message":"The Document has been Deleted Sucessfully"});
-    }catch(err){
-        console.error(err);
-        return res.status(500).json({"Message":"Cannot delete the Document "})
-    }
+    res.status(200).json({ "Message": "The Document has been Deleted Sucessfully" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ "Message": "Cannot delete the Document " })
+  }
 }
 
 
@@ -104,32 +104,32 @@ exports.getUserDocuments = async (req, res) => {
   }
 };
 
-
 exports.getDocumentById = async (req, res) => {
   try {
     const { id } = req.params;
-
     const doc = await Document.findById(id)
-      .populate("owner", "username email") 
-      .populate("collaborators", "username email"); 
+      .populate('owner')
+      .populate('collaborators');
 
     if (!doc) {
       return res.status(404).json({ Message: "Document not found" });
     }
-    if (
-      req.user.role !== "admin" && doc.owner._id.toString() !== req.user.id && !doc.collaborators.includes(req.user.id) ) {
-      return res.status(403).json({ Message: "Not authorized to view this document" });
+
+    const isOwner = req.user && doc.owner && doc.owner._id.toString() === req.user.id;
+    const isCollaborator = req.user && doc.collaborators.some(collab => collab._id.toString() === req.user.id);
+
+    if (req.user.role !== "admin" && !isOwner && !isCollaborator) {
+      return res.status(403).json({ Message: "Unauthorized to view this document" });
     }
 
-    res.status(200).json({
-      Message: "Document fetched successfully",
-      document: doc
-    });
+    res.status(200).json({ document: doc });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ Message: "Error fetching document" });
+    res.status(500).json({ Message: "Cannot find the document" });
   }
 };
+
 
 
 exports.searchDocuments = async (req, res) => {
@@ -148,9 +148,9 @@ exports.searchDocuments = async (req, res) => {
     }
 
     if (req.user.role === "admin") {
-      
+
     } else {
-      
+
       filter.$or = [
         { owner: req.user.id },
         { collaborators: req.user.id }
@@ -195,11 +195,12 @@ exports.getVersions = async (req, res) => {
   }
 };
 
+
 exports.restoreVersion = async (req, res) => {
   try {
     const { id, versionId } = req.params;
 
-    let doc = await Document.findById(id);
+    const doc = await Document.findById(id);
     if (!doc) {
       return res.status(404).json({ "Message": "Document not found" });
     }
@@ -217,19 +218,16 @@ exports.restoreVersion = async (req, res) => {
     if (!version) {
       return res.status(404).json({ "Message": "Version not found" });
     }
- 
-    doc.versions.push({
-      title: doc.title,
-      content: doc.content,
-      editedBy: userId
-    });
 
     doc.title = version.title;
-    doc.content = version.content;
-
+    doc.content = version.content
+    
     await doc.save();
+    const populatedDoc = await Document.findById(id)
+      .populate('owner')
+      .populate('collaborators');
 
-    res.status(200).json({ "Message": "Document restored to selected version", "Document": doc });
+    res.status(200).json({ "Message": "Document restored to selected version", "Document": populatedDoc });
 
   } catch (err) {
     console.error(err);
@@ -237,8 +235,9 @@ exports.restoreVersion = async (req, res) => {
   }
 };
 
-exports.deleteVersion = async (req,res)=>{
-  try{
+
+exports.deleteVersion = async (req, res) => {
+  try {
     const { id, versionId } = req.params;
 
     let doc = await Document.findById(id);
@@ -266,8 +265,8 @@ exports.deleteVersion = async (req,res)=>{
     await doc.save();
 
     res.status(200).json({ "Message": "Version deleted successfully" });
-  }catch(err){
+  } catch (err) {
     console.error(err)
-    return res.status(500).json({"Message":"Error deleting the Version"})
+    return res.status(500).json({ "Message": "Error deleting the Version" })
   }
 }
